@@ -41,6 +41,9 @@ static const struct fw3_chain_spec zone_chains[] = {
 
 	C(ANY, RAW,    NOTRACK,       "zone_%s_notrack"),
 
+	C(V4,  MANGLE, CLASSIFY,      "zone_%s_postrouting"),
+	C(V4,  MANGLE, CLASSIFY,      "zone_%s_prerouting"),
+
 	C(ANY, FILTER, CUSTOM_CHAINS, "input_%s_rule"),
 	C(ANY, FILTER, CUSTOM_CHAINS, "output_%s_rule"),
 	C(ANY, FILTER, CUSTOM_CHAINS, "forwarding_%s_rule"),

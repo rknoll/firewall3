@@ -62,6 +62,8 @@ const struct fw3_option fw3_rule_opts[] = {
 
 	FW3_OPT("target",              target,    rule,     target),
 
+	FW3_OPT("classify",            string,    rule,     classification),
+
 	{ }
 };
 
@@ -235,7 +237,7 @@ fw3_load_rules(struct fw3_state *state, struct uci_package *p,
 			warn_elem(e, "has no target specified, defaulting to REJECT");
 			rule->target = FW3_FLAG_REJECT;
 		}
-		else if (rule->target > FW3_FLAG_MARK)
+		else if (rule->target > FW3_FLAG_FILTER_MARK)
 		{
 			warn_elem(e, "has invalid target specified, defaulting to REJECT");
 			rule->target = FW3_FLAG_REJECT;
@@ -266,6 +268,10 @@ append_chain(struct fw3_ipt_rule *r, struct fw3_rule *rule)
 	if (rule->target == FW3_FLAG_NOTRACK)
 	{
 		snprintf(chain, sizeof(chain), "zone_%s_notrack", rule->src.name);
+	}
+	else if (rule->target == FW3_FLAG_CLASSIFY)
+	{
+		snprintf(chain, sizeof(chain), "zone_%s_postrouting", rule->src.name);
 	}
 	else if (rule->target == FW3_FLAG_MARK)
 	{
@@ -315,6 +321,7 @@ static void set_target(struct fw3_ipt_rule *r, struct fw3_rule *rule)
 	switch(rule->target)
 	{
 	case FW3_FLAG_MARK:
+	case FW3_FLAG_FILTER_MARK:
 		name = rule->set_mark.set ? "--set-mark" : "--set-xmark";
 		mark = rule->set_mark.set ? &rule->set_mark : &rule->set_xmark;
 		sprintf(buf, "0x%x/0x%x", mark->mark, mark->mask);
@@ -326,6 +333,16 @@ static void set_target(struct fw3_ipt_rule *r, struct fw3_rule *rule)
 	case FW3_FLAG_NOTRACK:
 		fw3_ipt_rule_target(r, "CT");
 		fw3_ipt_rule_addarg(r, false, "--notrack", NULL);
+		return;
+
+	case FW3_FLAG_LOG:
+		fw3_ipt_rule_target(r, "LOG");
+		fw3_ipt_rule_addarg(r, false, "--log-level", "7");
+		return;
+
+	case FW3_FLAG_CLASSIFY:
+		fw3_ipt_rule_target(r, "CLASSIFY");
+		fw3_ipt_rule_addarg(r, false, "--set-class", rule->classification);
 		return;
 
 	case FW3_FLAG_ACCEPT:
@@ -420,6 +437,9 @@ expand_rule(struct fw3_ipt_handle *handle, struct fw3_state *state,
 
 	if ((rule->target == FW3_FLAG_NOTRACK && handle->table != FW3_TABLE_RAW) ||
 	    (rule->target == FW3_FLAG_MARK && handle->table != FW3_TABLE_MANGLE) ||
+	    (rule->target == FW3_FLAG_FILTER_MARK && handle->table != FW3_TABLE_FILTER) ||
+	    (rule->target == FW3_FLAG_CLASSIFY && handle->table != FW3_TABLE_MANGLE) ||
+	    (rule->target == FW3_FLAG_LOG && handle->table != FW3_TABLE_FILTER) ||
 		(rule->target < FW3_FLAG_NOTRACK && handle->table != FW3_TABLE_FILTER))
 		return;
 
